@@ -1,0 +1,10 @@
+# Data outputs
+/data/
+
+# Build outputs (keep if already tracked)
+/bin/
+/obj/
+
+# VS Code settings (keep launch/tasks committed)
+.vscode/*.log
+.vscode/*.cache
