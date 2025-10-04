@@ -14,7 +14,7 @@ public interface IGuestRepository
 
 public sealed class GuestRepository : IGuestRepository
 {
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private static readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _path;
 
     public GuestRepository(string? path = null)
@@ -27,14 +27,14 @@ public sealed class GuestRepository : IGuestRepository
     public async Task AppendAsync(GuestRecord record, CancellationToken ct = default)
     {
         var json = JsonSerializer.Serialize(record);
-        await Gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct);
         try
         {
             await File.AppendAllTextAsync(_path, json + Environment.NewLine, Encoding.UTF8, ct);
         }
         finally
         {
-            Gate.Release();
+            _gate.Release();
         }
     }
 
@@ -142,7 +142,7 @@ public sealed class GuestRepository : IGuestRepository
         }
 
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        await Gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct);
         try
         {
             foreach (GuestRecord? owner in affected)
@@ -164,7 +164,7 @@ public sealed class GuestRepository : IGuestRepository
         }
         finally
         {
-            Gate.Release();
+            _gate.Release();
         }
 
         return affected.Count;

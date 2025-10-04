@@ -69,7 +69,7 @@ public class CsvExporterTests
             Assert.Equal(0, code);
             var lines = await File.ReadAllLinesAsync(output, Encoding.UTF8);
             // Only header expected when latest is Deleted
-            Assert.Equal(1, lines.Length);
+            Assert.Single(lines);
         }
         finally
         {

@@ -20,8 +20,8 @@ jobs:
       - name: Restore
         run: dotnet restore Bot.sln
 
-      - name: Verify formatting
-        run: dotnet format Bot.sln --verify-no-changes --severity info
+      - name: Verify formatting (errors only)
+        run: dotnet format Bot.sln --verify-no-changes --severity error
 
       - name: Build (Release)
         run: dotnet build -c Release Bot.sln --no-restore

@@ -4,6 +4,11 @@
 # Build outputs (keep if already tracked)
 /bin/
 /obj/
+**/bin/
+**/obj/
+**/TestResults/
+**/Debug/
+**/Release/
 
 # VS Code settings (keep launch/tasks committed)
 .vscode/*.log

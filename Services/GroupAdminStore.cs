@@ -13,7 +13,7 @@ public interface IGroupAdminStore
 public sealed class GroupAdminStore : IGroupAdminStore
 {
     private readonly string _path;
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private static readonly SemaphoreSlim _gate = new(1, 1);
 
     public GroupAdminStore(string? path = null)
     {
@@ -30,7 +30,7 @@ public sealed class GroupAdminStore : IGroupAdminStore
 
     public async Task<bool> AddAdminAsync(long groupChatId, long userId, CancellationToken ct = default)
     {
-        await Gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct);
         try
         {
             Dictionary<long, HashSet<long>> map = await LoadAsync(ct);
@@ -43,12 +43,12 @@ public sealed class GroupAdminStore : IGroupAdminStore
 
             return added;
         }
-        finally { Gate.Release(); }
+        finally { _gate.Release(); }
     }
 
     public async Task<bool> RemoveAdminAsync(long groupChatId, long userId, CancellationToken ct = default)
     {
-        await Gate.WaitAsync(ct);
+        await _gate.WaitAsync(ct);
         try
         {
             Dictionary<long, HashSet<long>> map = await LoadAsync(ct);
@@ -69,7 +69,7 @@ public sealed class GroupAdminStore : IGroupAdminStore
             }
             return removed;
         }
-        finally { Gate.Release(); }
+        finally { _gate.Release(); }
     }
 
     public Task<Dictionary<long, HashSet<long>>> ListAsync(CancellationToken ct = default) => LoadAsync(ct);
@@ -96,4 +96,3 @@ public sealed class GroupAdminStore : IGroupAdminStore
         await JsonSerializer.SerializeAsync(s, map, new JsonSerializerOptions { WriteIndented = true }, ct);
     }
 }
-
