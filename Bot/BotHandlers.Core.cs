@@ -594,7 +594,7 @@ public sealed partial class BotHandlers(ITelegramBotClient bot, IGuestRepository
         var kb = new ReplyKeyboardMarkup(rows) { ResizeKeyboard = true, OneTimeKeyboard = true };
 
         await _bot.SendTextMessageAsync(chatId,
-            "Choose language / Valitse kieli: fi or en",
+            "Choose your language / Valitse kieli",
             replyMarkup: kb,
             cancellationToken: ct);
     }

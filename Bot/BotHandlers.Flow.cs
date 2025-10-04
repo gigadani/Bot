@@ -21,7 +21,7 @@ public sealed partial class BotHandlers
             var kb = new ReplyKeyboardMarkup(rows) { ResizeKeyboard = true, OneTimeKeyboard = true };
 
             await _bot.SendTextMessageAsync(chatId,
-                "Please tap a button: fi or en / Valitse fi tai en",
+                "Choose your language / Valitse kieli",
                 replyMarkup: kb,
                 cancellationToken: ct);
             return;
