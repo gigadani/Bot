@@ -1,5 +1,6 @@
 using Bot.Models;
 using Bot.Services;
+
 using Telegram.Bot;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -11,11 +12,11 @@ public sealed partial class BotHandlers
     {
         if (!TryNormalizeLanguage(text, out var lang))
         {
-            var rows = new List<KeyboardButton[]> { new [] { new KeyboardButton("fi"), new KeyboardButton("en") } };
+            var rows = new List<KeyboardButton[]> { new[] { new KeyboardButton("fi"), new KeyboardButton("en") } };
             if (IsAdmin(session.UserId, session.Username, chatId, isPrivate: true))
             {
                 // Only show Broadcast here (not Export)
-                rows.Add(new[] { new KeyboardButton(BroadcastLabel(session.Language ?? "en")) });
+                rows.Add([new KeyboardButton(BroadcastLabel(session.Language ?? "en"))]);
             }
             var kb = new ReplyKeyboardMarkup(rows) { ResizeKeyboard = true, OneTimeKeyboard = true };
 
@@ -36,9 +37,14 @@ public sealed partial class BotHandlers
         if (IsExportCommand(session.Language ?? "en", text))
         {
             if (IsAdmin(session.UserId, session.Username, chatId, isPrivate: true))
+            {
                 await ExportAndSend(chatId, session, ct);
+            }
             else
+            {
                 await SendInLanguage(chatId, session.Language, ("You are not authorized.", "Ei oikeuksia."), ct);
+            }
+
             return;
         }
 
@@ -54,7 +60,11 @@ public sealed partial class BotHandlers
         }
         if (IsActionPartyInfo(lang, text) || text.Equals("/info", StringComparison.OrdinalIgnoreCase))
         {
-            await ShowPartyInfo(chatId, session, ct);
+            if (HasPartyInfo())
+            {
+                await ShowPartyInfo(chatId, session, ct);
+            }
+            // Re-show menu regardless; if no info, the button isn't shown
             await SendActionMenu(chatId, session, ct);
             return;
         }
@@ -77,10 +87,11 @@ public sealed partial class BotHandlers
         session.FullName = NormalizeName(text);
         session.Step = Step.AskPlusOne;
 
-        var kb = new ReplyKeyboardMarkup(new[]
-        {
-            new KeyboardButton[] { session.Language == "fi" ? "kyllä" : "yes", session.Language == "fi" ? "ei" : "no" }
-        }) { ResizeKeyboard = true, OneTimeKeyboard = true };
+        var kb = new ReplyKeyboardMarkup(
+        [
+            [session.Language == "fi" ? "kyllä" : "yes", session.Language == "fi" ? "ei" : "no"]
+        ])
+        { ResizeKeyboard = true, OneTimeKeyboard = true };
 
         await SendInLanguage(chatId, session.Language, (
             en: "Do you want a +1 (avec)? yes/no",
@@ -103,10 +114,10 @@ public sealed partial class BotHandlers
         if (yes)
         {
             session.Step = Step.AskAvecName;
-        await SendInLanguage(chatId, session.Language, (
-            en: "Enter your +1's full name (first and last), or share their contact card:",
-            fi: "Anna avecin koko nimi (etu- ja sukunimi), tai jaa hänen yhteystietonsa:"
-        ), ct);
+            await SendInLanguage(chatId, session.Language, (
+                en: "Enter your +1's full name (first and last), or share their contact card:",
+                fi: "Anna avecin koko nimi (etu- ja sukunimi), tai jaa hänen yhteystietonsa:"
+            ), ct);
         }
         else
         {
@@ -236,7 +247,11 @@ public sealed partial class BotHandlers
         if (!string.IsNullOrWhiteSpace(session.Username))
         {
             var h = session.Username!;
-            if (h.StartsWith("@")) h = h[1..];
+            if (h.StartsWith("@"))
+            {
+                h = h[1..];
+            }
+
             h = h.ToLowerInvariant();
             await _repo.RemoveAvecByHandleAsync(h, ct);
         }
@@ -273,7 +288,7 @@ public sealed partial class BotHandlers
         session.WantsPlusOne = false; session.AvecFullName = null;
 
         // Offer a Start button to re-register
-        var kb = new ReplyKeyboardMarkup(new[] { new KeyboardButton[] { "/start" } })
+        var kb = new ReplyKeyboardMarkup([["/start"]])
         { ResizeKeyboard = true, OneTimeKeyboard = false };
         await _bot.SendTextMessageAsync(chatId,
             session.Language == "fi" ? "Voit aloittaa alusta painamalla /start." : "You can start over by pressing /start.",
@@ -284,12 +299,20 @@ public sealed partial class BotHandlers
     internal async Task SendActionMenu(long chatId, Session session, CancellationToken ct)
     {
         var lang = session.Language ?? "en";
-        var labels = ActionLabels(lang);
+        (var signUp, var info) = ActionLabels(lang);
         var rows = new List<Telegram.Bot.Types.ReplyMarkups.KeyboardButton[]>();
-        rows.Add(new[] { new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(labels.signUp), new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(labels.info) });
+        var firstRow = new List<Telegram.Bot.Types.ReplyMarkups.KeyboardButton>
+        {
+            new(signUp)
+        };
+        if (HasPartyInfo())
+        {
+            firstRow.Add(new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(info));
+        }
+        rows.Add([.. firstRow]);
         if (IsAdmin(session.UserId, session.Username, chatId, isPrivate: true))
         {
-            rows.Add(new[] { new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(BotHandlers.ExportLabel(lang)), new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(BotHandlers.BroadcastLabel(lang)) });
+            rows.Add([new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(BotHandlers.ExportLabel(lang)), new Telegram.Bot.Types.ReplyMarkups.KeyboardButton(BotHandlers.BroadcastLabel(lang))]);
         }
         var kb = new Telegram.Bot.Types.ReplyMarkups.ReplyKeyboardMarkup(rows) { ResizeKeyboard = true, OneTimeKeyboard = false };
         await SendInLanguage(chatId, session.Language, (
@@ -304,14 +327,22 @@ public sealed partial class BotHandlers
     internal static bool IsActionSignUp(string lang, string input)
     {
         var v = input.Trim();
-        if (lang == "fi") return string.Equals(v, "Ilmoittaudu", StringComparison.OrdinalIgnoreCase);
+        if (lang == "fi")
+        {
+            return string.Equals(v, "Ilmoittaudu", StringComparison.OrdinalIgnoreCase);
+        }
+
         return string.Equals(v, "Sign up", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool IsActionPartyInfo(string lang, string input)
     {
         var v = input.Trim();
-        if (lang == "fi") return string.Equals(v, "Tapahtuman tiedot", StringComparison.OrdinalIgnoreCase);
+        if (lang == "fi")
+        {
+            return string.Equals(v, "Tapahtuman tiedot", StringComparison.OrdinalIgnoreCase);
+        }
+
         return string.Equals(v, "Party info", StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -1,5 +1,7 @@
 # Telegram RSVP Bot (C#/.NET 9)
 
+[![CI](https://github.com/gigadani/Bot/actions/workflows/ci.yml/badge.svg)](https://github.com/gigadani/Bot/actions/workflows/ci.yml)
+
 A simple, bilingual (fi/en) Telegram bot for collecting event RSVPs. Guests can sign up with their name and optional +1 (avec). Admins can export RSVPs to CSV, broadcast messages, and manage group-specific admins.
 
 ## Features
@@ -28,12 +30,12 @@ A simple, bilingual (fi/en) Telegram bot for collecting event RSVPs. Guests can 
 - Set `Admin:UserId` in `appsettings.json` to a numeric Telegram user ID or an `@username` to designate the superadmin.
 - Superadmin can designate additional group-specific admins at runtime (see Admin Commands).
 
-4) Configure required single-group mode
-- Set `Group:Id` to your group chat ID (required). The bot ignores non-private messages from any other group, and all group-admin commands operate on this group only.
+4) Optional single-group mode
+- Set `Group:Id` to your group chat ID to enable the bot in that group. Without this, the bot operates only in private chats. When set, non-private messages from other groups are ignored, and group-admin commands operate on this configured group.
 
 5) Optional party info
-- Configure `Party:InfoTextPath` and `Party:InfoImagePath` in `appsettings.json`.
-- If the image path does not exist, a placeholder image may be generated on first use.
+- Configure `Party:InfoTextPath` and/or `Party:InfoImagePath` in `appsettings.json`.
+- If neither exists or has content, the “Party info” option is hidden.
 
 6) Run locally
 - `dotnet run`
@@ -55,9 +57,11 @@ A simple, bilingual (fi/en) Telegram bot for collecting event RSVPs. Guests can 
 - Who am I
   - `/whoami` (admin only) returns your `UserId`, `ChatId`, and `@username`.
 - Group admins (superadmin only, in private chat)
-  - `/groupadmins list` – lists admins for the configured group
-  - `/groupadmins add <userId>` – add admin to the configured group
-  - `/groupadmins remove <userId>` – remove admin from the configured group
+  - If `Group:Id` is set:
+    - `/groupadmins list` – lists admins for the configured group
+    - `/groupadmins add <userId>` – add admin to the configured group
+    - `/groupadmins remove <userId>` – remove admin from the configured group
+  - If `Group:Id` is not set: `/groupadmins` is disabled (no group configured).
 
 ## Data & Storage
 - RSVP data: `data/rsvps.jsonl` (JSON Lines), append-only with the latest record considered authoritative per user.

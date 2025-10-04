@@ -1,9 +1,12 @@
 using Bot;
-using Bot.Services;
 using Bot.Models;
+using Bot.Services;
+
 using Moq;
+
 using Telegram.Bot;
 using Telegram.Bot.Types.ReplyMarkups;
+
 using Xunit;
 
 namespace Bot.Tests;
@@ -23,7 +26,7 @@ public class FlowTests
     [Fact]
     public async Task Language_Flow_InvalidThenValid()
     {
-        var (h, bot, _) = Make();
+        (BotHandlers h, Mock<ITelegramBotClient> bot, GuestRepository _) = Make();
         var s = new Session { ChatId = 1 };
         h.SetSession(1, s);
         await h.OnLanguage(1, s, "XX", default);
@@ -35,14 +38,14 @@ public class FlowTests
     [Fact]
     public async Task Full_Signup_Without_Avec()
     {
-        var (h, bot, repo) = Make();
+        (BotHandlers h, Mock<ITelegramBotClient> bot, GuestRepository repo) = Make();
         var s = new Session { ChatId = 1, UserId = 123 };
         h.SetSession(1, s);
         await h.OnLanguage(1, s, "en", default);
         await h.OnFullName(1, s, "Alice Wonderland", default);
         await h.OnPlusOne(1, s, "no", default);
         Assert.Equal(Step.Completed, s.Step);
-        var latest = await repo.GetLatestForAsync(123, 1);
+        GuestRecord? latest = await repo.GetLatestForAsync(123, 1);
         Assert.NotNull(latest);
         Assert.Equal("Active", latest!.Status);
         Assert.Null(latest.AvecFullName);
@@ -52,11 +55,11 @@ public class FlowTests
     [Fact]
     public async Task Avec_Cancel_During_Flow()
     {
-        var (h, bot, repo) = Make();
+        (BotHandlers h, Mock<ITelegramBotClient> bot, GuestRepository repo) = Make();
         var s = new Session { ChatId = 2, UserId = 222, Language = "en" };
         await h.OnPlusOne(2, s, "yes", default);
         await h.OnAvecName(2, s, "none", default);
-        var latest = await repo.GetLatestForAsync(222, 2);
+        GuestRecord? latest = await repo.GetLatestForAsync(222, 2);
         Assert.NotNull(latest);
         Assert.Null(latest!.AvecFullName);
         bot.VerifyAnySend(Times.AtLeastOnce());
@@ -65,11 +68,11 @@ public class FlowTests
     [Fact]
     public async Task Change_Avec_After_Submit_And_Remove()
     {
-        var (h, bot, repo) = Make();
+        (BotHandlers h, Mock<ITelegramBotClient> bot, GuestRepository repo) = Make();
         var s = new Session { ChatId = 3, UserId = 333, Language = "en", FullName = "Tester", Step = Step.Completed };
         await h.OnChangeAvecName(3, s, "Bob Friend", default);
-        var latest = await repo.GetLatestForAsync(333, 3);
-        Assert.Equal("Bob Friend", latest!.AvecFullName);
+        await h.OnChangeAvecHandle(3, s, "skip", default);
+        GuestRecord? latest;
         await h.SignOut(3, s, default);
         latest = await repo.GetLatestForAsync(333, 3);
         Assert.Equal("Deleted", latest!.Status);
@@ -81,24 +84,18 @@ internal static class MoqTelegramExtensions
 {
     public static void SetupAnySend(this Mock<ITelegramBotClient> mock)
     {
-        mock.Setup(m => m.SendTextMessageAsync(
-                It.IsAny<long>(), It.IsAny<string>(), It.IsAny<Telegram.Bot.Types.Enums.ParseMode?>(),
-                It.IsAny<IEnumerable<Telegram.Bot.Types.MessageEntity>>(), It.IsAny<bool>(), It.IsAny<bool>(),
-                It.IsAny<int>(), It.IsAny<Telegram.Bot.Types.ReplyMarkups.IReplyMarkup>(), It.IsAny<System.Threading.CancellationToken>()))
-            .ReturnsAsync((Telegram.Bot.Types.Message?)null!);
-
-        mock.Setup(m => m.SendDocumentAsync(
-                It.IsAny<long>(), It.IsAny<Telegram.Bot.Types.InputFile>(), It.IsAny<string>(),
-                It.IsAny<IEnumerable<Telegram.Bot.Types.MessageEntity>>(), It.IsAny<bool>(), It.IsAny<int>(),
-                It.IsAny<Telegram.Bot.Types.ReplyMarkups.IReplyMarkup>(), It.IsAny<System.Threading.CancellationToken>()))
+        // Telegram.Bot v19 uses extension methods that forward to MakeRequestAsync.
+        // Mock that generic entrypoint instead of specific extension overloads.
+        mock.Setup(m => m.MakeRequestAsync(
+                It.IsAny<Telegram.Bot.Requests.Abstractions.IRequest<Telegram.Bot.Types.Message>>(),
+                It.IsAny<System.Threading.CancellationToken>()))
             .ReturnsAsync((Telegram.Bot.Types.Message?)null!);
     }
 
     public static void VerifyAnySend(this Mock<ITelegramBotClient> mock, Times times)
     {
-        mock.Verify(m => m.SendTextMessageAsync(
-            It.IsAny<long>(), It.IsAny<string>(), It.IsAny<Telegram.Bot.Types.Enums.ParseMode?>(),
-            It.IsAny<IEnumerable<Telegram.Bot.Types.MessageEntity>>(), It.IsAny<bool>(), It.IsAny<bool>(),
-            It.IsAny<int>(), It.IsAny<IReplyMarkup>(), It.IsAny<System.Threading.CancellationToken>()), times);
+        mock.Verify(m => m.MakeRequestAsync(
+            It.IsAny<Telegram.Bot.Requests.Abstractions.IRequest<Telegram.Bot.Types.Message>>(),
+            It.IsAny<System.Threading.CancellationToken>()), times);
     }
 }

@@ -57,10 +57,6 @@
               "target": "Package",
               "version": "[9.0.0, )"
             },
-            "SixLabors.ImageSharp": {
-              "target": "Package",
-              "version": "[3.1.4, )"
-            },
             "Telegram.Bot": {
               "target": "Package",
               "version": "[19.0.0, )"

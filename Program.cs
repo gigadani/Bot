@@ -1,11 +1,13 @@
 using Bot;
 using Bot.Services;
 using Bot.Util;
+
 using Microsoft.Extensions.Configuration;
+
 using Telegram.Bot;
 
 // Build configuration: appsettings.json + user-secrets + env vars
-var configuration = new ConfigurationBuilder()
+IConfigurationRoot configuration = new ConfigurationBuilder()
     .SetBasePath(Directory.GetCurrentDirectory())
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddUserSecrets<Program>(optional: true)
@@ -30,7 +32,7 @@ if (string.IsNullOrWhiteSpace(token))
 }
 
 var botClient = new TelegramBotClient(token);
-var me = await botClient.GetMeAsync();
+Telegram.Bot.Types.User me = await botClient.GetMeAsync();
 Console.WriteLine($"Starting bot @{me.Username} (id {me.Id})...");
 
 var adminSetting = configuration["Admin:UserId"];
@@ -38,22 +40,26 @@ long? adminUserId = null;
 string? adminUsername = null;
 if (!string.IsNullOrWhiteSpace(adminSetting))
 {
-    if (long.TryParse(adminSetting, out var parsedAdmin)) adminUserId = parsedAdmin;
-    else adminUsername = adminSetting.Trim();
+    if (long.TryParse(adminSetting, out var parsedAdmin))
+    {
+        adminUserId = parsedAdmin;
+    }
+    else
+    {
+        adminUsername = adminSetting.Trim();
+    }
 }
 
 var repo = new GuestRepository();
 var groupAdminStore = new GroupAdminStore();
 
-// Single-group mode is mandatory
+// Optional single-group mode; when not set, the bot operates only in private chats
+long? allowedGroupId = null;
 var groupIdSetting = configuration["Group:Id"];
-if (string.IsNullOrWhiteSpace(groupIdSetting) || !long.TryParse(groupIdSetting, out var parsedGroupId))
+if (!string.IsNullOrWhiteSpace(groupIdSetting) && long.TryParse(groupIdSetting, out var parsedGroupId))
 {
-    Console.Error.WriteLine("Missing or invalid Group:Id. Configure the numeric Telegram group ID in appsettings.json or environment.");
-    Console.Error.WriteLine("Example:  dotnet user-secrets set \"Group:Id\" \"-1001234567890\" ");
-    return 1;
+    allowedGroupId = parsedGroupId;
 }
-long allowedGroupId = parsedGroupId;
 var handlers = new BotHandlers(
     botClient,
     repo,
@@ -70,7 +76,7 @@ Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
 botClient.StartReceiving(
     updateHandler: handlers.HandleUpdateAsync,
-    pollingErrorHandler: handlers.HandleErrorAsync,
+    pollingErrorHandler: BotHandlers.HandleErrorAsync,
     receiverOptions: handlers.ReceiverOptions,
     cancellationToken: cts.Token
 );

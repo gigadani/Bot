@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+
 using Bot.Models;
 
 namespace Bot.Services;
@@ -39,27 +40,49 @@ public sealed class GuestRepository : IGuestRepository
 
     public async Task<GuestRecord?> GetLatestForAsync(long userId, long chatId, CancellationToken ct = default)
     {
-        if (!File.Exists(_path)) return null;
-        await using var inStream = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        if (!File.Exists(_path))
+        {
+            return null;
+        }
+
+        await using FileStream inStream = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(inStream, Encoding.UTF8);
         string? line;
         GuestRecord? last = null;
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-        while ((line = await reader.ReadLineAsync()) is not null)
+        while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
-            if (ct.IsCancellationRequested) break;
-            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (ct.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
             try
             {
-                var rec = JsonSerializer.Deserialize<GuestRecord>(line, options);
-                if (rec is null) continue;
+                GuestRecord? rec = JsonSerializer.Deserialize<GuestRecord>(line, options);
+                if (rec is null)
+                {
+                    continue;
+                }
+
                 if (userId != 0)
                 {
-                    if (rec.UserId == userId) last = rec;
+                    if (rec.UserId == userId)
+                    {
+                        last = rec;
+                    }
                 }
                 else
                 {
-                    if (rec.ChatId == chatId) last = rec;
+                    if (rec.ChatId == chatId)
+                    {
+                        last = rec;
+                    }
                 }
             }
             catch { /* skip malformed */ }
@@ -69,23 +92,38 @@ public sealed class GuestRepository : IGuestRepository
 
     public async Task<int> RemoveAvecByHandleAsync(string normalizedHandle, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(normalizedHandle)) return 0;
-        if (!File.Exists(_path)) return 0;
+        if (string.IsNullOrWhiteSpace(normalizedHandle))
+        {
+            return 0;
+        }
+
+        if (!File.Exists(_path))
+        {
+            return 0;
+        }
 
         // Build latest by key
         var latest = new Dictionary<long, GuestRecord>();
-        await using (var inStream = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        await using (FileStream inStream = File.Open(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
         using (var reader = new StreamReader(inStream, Encoding.UTF8))
         {
             string? line;
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            while ((line = await reader.ReadLineAsync()) is not null)
+            while ((line = await reader.ReadLineAsync(ct)) is not null)
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
                 try
                 {
-                    var rec = JsonSerializer.Deserialize<GuestRecord>(line, options);
-                    if (rec is null) continue;
+                    GuestRecord? rec = JsonSerializer.Deserialize<GuestRecord>(line, options);
+                    if (rec is null)
+                    {
+                        continue;
+                    }
+
                     var key = rec.UserId != 0 ? rec.UserId : rec.ChatId;
                     latest[key] = rec;
                 }
@@ -98,13 +136,16 @@ public sealed class GuestRepository : IGuestRepository
             .Where(r => !string.IsNullOrWhiteSpace(r.AvecUsername) && string.Equals(r.AvecUsername, normalizedHandle, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        if (affected.Count == 0) return 0;
+        if (affected.Count == 0)
+        {
+            return 0;
+        }
 
-        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
         await Gate.WaitAsync(ct);
         try
         {
-            foreach (var owner in affected)
+            foreach (GuestRecord? owner in affected)
             {
                 var updated = new GuestRecord(
                     ChatId: owner.ChatId,

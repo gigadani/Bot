@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
+
 using Bot.Models;
 using Bot.Util;
+
 using Xunit;
 
 namespace Bot.Tests;
@@ -20,11 +22,11 @@ public class CsvExporterTests
             // Two records for same user; second is latest and Active
             var r1 = new GuestRecord(1, 100, DateTimeOffset.UtcNow.AddMinutes(-5), "en", "Alice One", null, "alice", null, "Active");
             var r2 = new GuestRecord(1, 100, DateTimeOffset.UtcNow, "en", "Alice Two", "Bob Friend", "alice", null, "Active");
-            await File.WriteAllLinesAsync(input, new[]
-            {
+            await File.WriteAllLinesAsync(input,
+            [
                 JsonSerializer.Serialize(r1),
                 JsonSerializer.Serialize(r2)
-            }, Encoding.UTF8);
+            ], Encoding.UTF8);
 
             var code = await CsvExporter.ExportAsync(output, input);
             Assert.Equal(0, code);
@@ -36,8 +38,15 @@ public class CsvExporterTests
         }
         finally
         {
-            if (File.Exists(input)) File.Delete(input);
-            if (File.Exists(output)) File.Delete(output);
+            if (File.Exists(input))
+            {
+                File.Delete(input);
+            }
+
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
         }
     }
 
@@ -50,11 +59,11 @@ public class CsvExporterTests
         {
             var active = new GuestRecord(2, 200, DateTimeOffset.UtcNow.AddMinutes(-10), "fi", "Teppo Testaaja", null, "teppo", null, "Active");
             var deleted = new GuestRecord(2, 200, DateTimeOffset.UtcNow, "fi", "Teppo Testaaja", null, "teppo", null, "Deleted");
-            await File.WriteAllLinesAsync(input, new[]
-            {
+            await File.WriteAllLinesAsync(input,
+            [
                 JsonSerializer.Serialize(active),
                 JsonSerializer.Serialize(deleted)
-            }, Encoding.UTF8);
+            ], Encoding.UTF8);
 
             var code = await CsvExporter.ExportAsync(output, input);
             Assert.Equal(0, code);
@@ -64,8 +73,15 @@ public class CsvExporterTests
         }
         finally
         {
-            if (File.Exists(input)) File.Delete(input);
-            if (File.Exists(output)) File.Delete(output);
+            if (File.Exists(input))
+            {
+                File.Delete(input);
+            }
+
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
         }
     }
 }

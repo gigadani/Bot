@@ -1,6 +1,8 @@
 using System.Text.Json;
+
 using Bot.Models;
 using Bot.Services;
+
 using Xunit;
 
 namespace Bot.Tests;
@@ -21,14 +23,17 @@ public class GuestRepositoryTests
             await repo.AppendAsync(rec1);
             await repo.AppendAsync(rec2);
 
-            var latest = await repo.GetLatestForAsync(100, 1);
+            GuestRecord? latest = await repo.GetLatestForAsync(100, 1);
             Assert.NotNull(latest);
             Assert.Equal("Alice Two", latest!.FullName);
             Assert.Equal("Bob Friend", latest.AvecFullName);
         }
         finally
         {
-            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 
@@ -42,13 +47,16 @@ public class GuestRepositoryTests
             var rec1 = new GuestRecord(9999, 0, DateTimeOffset.UtcNow.AddMinutes(-1), "fi", "Matti Meikalainen", null, null, null, "Active");
             await repo.AppendAsync(rec1);
 
-            var latest = await repo.GetLatestForAsync(0, 9999);
+            GuestRecord? latest = await repo.GetLatestForAsync(0, 9999);
             Assert.NotNull(latest);
             Assert.Equal("Matti Meikalainen", latest!.FullName);
         }
         finally
         {
-            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 }

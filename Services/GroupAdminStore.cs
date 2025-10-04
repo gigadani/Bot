@@ -24,8 +24,8 @@ public sealed class GroupAdminStore : IGroupAdminStore
 
     public async Task<HashSet<long>> GetAdminsAsync(long groupChatId, CancellationToken ct = default)
     {
-        var map = await LoadAsync(ct);
-        return map.TryGetValue(groupChatId, out var set) ? new HashSet<long>(set) : new HashSet<long>();
+        Dictionary<long, HashSet<long>> map = await LoadAsync(ct);
+        return map.TryGetValue(groupChatId, out HashSet<long>? set) ? new HashSet<long>(set) : [];
     }
 
     public async Task<bool> AddAdminAsync(long groupChatId, long userId, CancellationToken ct = default)
@@ -33,10 +33,14 @@ public sealed class GroupAdminStore : IGroupAdminStore
         await Gate.WaitAsync(ct);
         try
         {
-            var map = await LoadAsync(ct);
-            if (!map.TryGetValue(groupChatId, out var set)) { set = new HashSet<long>(); map[groupChatId] = set; }
+            Dictionary<long, HashSet<long>> map = await LoadAsync(ct);
+            if (!map.TryGetValue(groupChatId, out HashSet<long>? set)) { set = []; map[groupChatId] = set; }
             var added = set.Add(userId);
-            if (added) await SaveAsync(map, ct);
+            if (added)
+            {
+                await SaveAsync(map, ct);
+            }
+
             return added;
         }
         finally { Gate.Release(); }
@@ -47,12 +51,20 @@ public sealed class GroupAdminStore : IGroupAdminStore
         await Gate.WaitAsync(ct);
         try
         {
-            var map = await LoadAsync(ct);
-            if (!map.TryGetValue(groupChatId, out var set)) return false;
+            Dictionary<long, HashSet<long>> map = await LoadAsync(ct);
+            if (!map.TryGetValue(groupChatId, out HashSet<long>? set))
+            {
+                return false;
+            }
+
             var removed = set.Remove(userId);
             if (removed)
             {
-                if (set.Count == 0) map.Remove(groupChatId);
+                if (set.Count == 0)
+                {
+                    map.Remove(groupChatId);
+                }
+
                 await SaveAsync(map, ct);
             }
             return removed;
@@ -64,19 +76,23 @@ public sealed class GroupAdminStore : IGroupAdminStore
 
     private async Task<Dictionary<long, HashSet<long>>> LoadAsync(CancellationToken ct)
     {
-        if (!File.Exists(_path)) return new();
+        if (!File.Exists(_path))
+        {
+            return [];
+        }
+
         try
         {
-            await using var s = File.OpenRead(_path);
-            var map = await JsonSerializer.DeserializeAsync<Dictionary<long, HashSet<long>>>(s, cancellationToken: ct);
-            return map ?? new();
+            await using FileStream s = File.OpenRead(_path);
+            Dictionary<long, HashSet<long>>? map = await JsonSerializer.DeserializeAsync<Dictionary<long, HashSet<long>>>(s, cancellationToken: ct);
+            return map ?? [];
         }
-        catch { return new(); }
+        catch { return []; }
     }
 
     private async Task SaveAsync(Dictionary<long, HashSet<long>> map, CancellationToken ct)
     {
-        await using var s = File.Open(_path, FileMode.Create, FileAccess.Write, FileShare.None);
+        await using FileStream s = File.Open(_path, FileMode.Create, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(s, map, new JsonSerializerOptions { WriteIndented = true }, ct);
     }
 }

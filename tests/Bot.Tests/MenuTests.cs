@@ -1,4 +1,5 @@
 using Bot;
+
 using Xunit;
 
 namespace Bot.Tests;
@@ -8,10 +9,10 @@ public class MenuTests
     [Fact]
     public void Labels_Localize()
     {
-        var en = BotHandlers.CompletedMenuLabels("en");
-        var fi = BotHandlers.CompletedMenuLabels("fi");
-        Assert.Equal("Change +1 name", en.changeAvec);
-        Assert.Equal("Remove signup", en.removeSignup);
+        (var changeAvec, var removeSignup) = BotHandlers.CompletedMenuLabels("en");
+        (string changeAvec, string removeSignup) fi = BotHandlers.CompletedMenuLabels("fi");
+        Assert.Equal("Change +1 name", changeAvec);
+        Assert.Equal("Remove signup", removeSignup);
         Assert.Equal("Vaihda avecin nimi", fi.changeAvec);
         Assert.Equal("Peru ilmoittautuminen", fi.removeSignup);
     }

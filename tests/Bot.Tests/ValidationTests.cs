@@ -1,4 +1,5 @@
 using Bot;
+
 using Xunit;
 
 namespace Bot.Tests;
@@ -13,7 +14,10 @@ public class ValidationTests
     public void TryNormalizeLanguage_Works(string input, bool ok)
     {
         Assert.Equal(ok, BotHandlers.TryNormalizeLanguage(input, out var lang));
-        if (ok) Assert.True(lang == "fi" || lang == "en");
+        if (ok)
+        {
+            Assert.True(lang == "fi" || lang == "en");
+        }
     }
 
     [Theory]
@@ -44,7 +48,10 @@ public class ValidationTests
     {
         var res = BotHandlers.ParseYesNo(lang, input, out var yes);
         Assert.Equal(ok, res);
-        if (ok) Assert.Equal(expected, yes);
+        if (ok)
+        {
+            Assert.Equal(expected, yes);
+        }
     }
 
     [Theory]
