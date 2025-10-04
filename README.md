@@ -123,6 +123,3 @@ Notes:
 - Models: `Models/*`
 - Utilities: `Util/CsvExporter.cs`
 - Tests: `tests/Bot.Tests`
-
-## License
-This project is provided as-is. Add a license file if you intend to publish publicly.
