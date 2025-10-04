@@ -23,8 +23,9 @@ public sealed partial class BotHandlers
     private readonly string? _partyTextPath;
     private readonly string? _partyImagePath;
     private readonly IGroupAdminStore _groupAdmins;
+    private readonly long _allowedGroupId;
 
-    public BotHandlers(ITelegramBotClient bot, IGuestRepository repo, long? adminUserId = null, string? adminUsername = null, string? partyTextPath = null, string? partyImagePath = null, IGroupAdminStore? groupAdmins = null)
+    public BotHandlers(ITelegramBotClient bot, IGuestRepository repo, long? adminUserId = null, string? adminUsername = null, string? partyTextPath = null, string? partyImagePath = null, IGroupAdminStore? groupAdmins = null, long? allowedGroupId = null)
     {
         _bot = bot;
         _repo = repo;
@@ -33,6 +34,8 @@ public sealed partial class BotHandlers
         _partyTextPath = partyTextPath;
         _partyImagePath = partyImagePath;
         _groupAdmins = groupAdmins ?? new GroupAdminStore();
+        if (!allowedGroupId.HasValue) throw new ArgumentException("Single-group mode requires an allowedGroupId.");
+        _allowedGroupId = allowedGroupId.Value;
     }
 
     public ReceiverOptions ReceiverOptions { get; } = new()
@@ -48,6 +51,9 @@ public sealed partial class BotHandlers
         var message = update.Message;
         var chatId = message.Chat.Id;
         var isPrivate = message.Chat.Type == ChatType.Private;
+        // If single-group mode is configured, ignore non-private messages from other groups
+        if (!isPrivate && chatId != _allowedGroupId)
+            return;
         var text = message.Text?.Trim() ?? string.Empty;
         var session = _sessions.GetOrAdd(chatId, id => new Session { ChatId = id, Step = Step.AskLanguage });
 
@@ -217,42 +223,34 @@ public sealed partial class BotHandlers
             if (parts.Length < 2)
             {
                 await _bot.SendTextMessageAsync(chatId,
-                    "Usage:\n/groupadmins list [groupId]\n/groupadmins add <groupId> <userId>\n/groupadmins remove <groupId> <userId>",
+                    "Usage:\n/groupadmins list\n/groupadmins add <userId>\n/groupadmins remove <userId>",
                     cancellationToken: ct);
                 return;
             }
             var cmd = parts[1].ToLowerInvariant();
             if (cmd == "list")
             {
-                if (parts.Length == 3 && long.TryParse(parts[2], out var gid))
-                {
-                    var set = await _groupAdmins.GetAdminsAsync(gid, ct);
-                    await _bot.SendTextMessageAsync(chatId, set.Count == 0 ? "(empty)" : string.Join("\n", set), cancellationToken: ct);
-                }
-                else
-                {
-                    var map = await _groupAdmins.ListAsync(ct);
-                    if (map.Count == 0) { await _bot.SendTextMessageAsync(chatId, "(no groups)", cancellationToken: ct); }
-                    else
-                    {
-                        var lines = map.Select(kv => $"{kv.Key}: [{string.Join(',', kv.Value)}]");
-                        await _bot.SendTextMessageAsync(chatId, string.Join("\n", lines), cancellationToken: ct);
-                    }
-                }
+                var set = await _groupAdmins.GetAdminsAsync(_allowedGroupId, ct);
+                await _bot.SendTextMessageAsync(chatId, set.Count == 0 ? "(empty)" : string.Join("\n", set), cancellationToken: ct);
                 return;
             }
-            if ((cmd == "add" || cmd == "remove") && parts.Length == 4 && long.TryParse(parts[2], out var g) && long.TryParse(parts[3], out var u))
+            if (cmd == "add" || cmd == "remove")
             {
-                if (cmd == "add")
+                if (parts.Length == 3 && long.TryParse(parts[2], out var u))
                 {
-                    var ok = await _groupAdmins.AddAdminAsync(g, u, ct);
-                    await _bot.SendTextMessageAsync(chatId, ok ? "Added" : "Already present", cancellationToken: ct);
+                    if (cmd == "add")
+                    {
+                        var ok = await _groupAdmins.AddAdminAsync(_allowedGroupId, u, ct);
+                        await _bot.SendTextMessageAsync(chatId, ok ? "Added" : "Already present", cancellationToken: ct);
+                    }
+                    else
+                    {
+                        var ok = await _groupAdmins.RemoveAdminAsync(_allowedGroupId, u, ct);
+                        await _bot.SendTextMessageAsync(chatId, ok ? "Removed" : "Not found", cancellationToken: ct);
+                    }
+                    return;
                 }
-                else
-                {
-                    var ok = await _groupAdmins.RemoveAdminAsync(g, u, ct);
-                    await _bot.SendTextMessageAsync(chatId, ok ? "Removed" : "Not found", cancellationToken: ct);
-                }
+                await _bot.SendTextMessageAsync(chatId, "Usage: /groupadmins add <userId> | /groupadmins remove <userId>", cancellationToken: ct);
                 return;
             }
             await _bot.SendTextMessageAsync(chatId, "Invalid syntax. See /groupadmins list|add|remove", cancellationToken: ct);
@@ -455,7 +453,7 @@ public sealed partial class BotHandlers
         // Group-specific admins
         if (!isPrivate && userId.HasValue)
         {
-            var set = _groupAdmins.GetAdminsAsync(chatId).GetAwaiter().GetResult();
+            var set = _groupAdmins.GetAdminsAsync(_allowedGroupId).GetAwaiter().GetResult();
             if (set.Contains(userId.Value)) return true;
         }
 
@@ -519,21 +517,41 @@ public sealed partial class BotHandlers
 
     internal async Task ShowPartyInfo(long chatId, Session session, CancellationToken ct)
     {
+        // Resolve relative to the executable's directory (AppContext.BaseDirectory)
         var baseDir = AppContext.BaseDirectory;
+        string ResolveAtBase(string path) => Path.IsPathRooted(path) ? path : Path.Combine(baseDir, path);
+
+        static SixLabors.ImageSharp.Formats.IImageEncoder? EncoderForExtension(string path)
+        {
+            var ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext switch
+            {
+                ".jpg" or ".jpeg" => new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder(),
+                ".png" => new SixLabors.ImageSharp.Formats.Png.PngEncoder(),
+                ".gif" => new SixLabors.ImageSharp.Formats.Gif.GifEncoder(),
+                ".bmp" => new SixLabors.ImageSharp.Formats.Bmp.BmpEncoder(),
+                _ => null
+            };
+        }
+
         async Task SendTextAsync()
         {
             var path = _partyTextPath;
             if (!string.IsNullOrWhiteSpace(path))
             {
-                var abs = Path.IsPathRooted(path) ? path : Path.Combine(baseDir, path);
+                var abs = ResolveAtBase(path);
                 if (System.IO.File.Exists(abs))
                 {
-                    var text = await System.IO.File.ReadAllTextAsync(abs, ct);
-                    if (!string.IsNullOrWhiteSpace(text))
+                    try
                     {
-                        await _bot.SendTextMessageAsync(chatId, text, cancellationToken: ct);
-                        return;
+                        var text = await System.IO.File.ReadAllTextAsync(abs, ct);
+                        if (!string.IsNullOrWhiteSpace(text))
+                        {
+                            await _bot.SendTextMessageAsync(chatId, text, cancellationToken: ct);
+                            return;
+                        }
                     }
+                    catch { /* ignore and fall back */ }
                 }
             }
             await SendInLanguage(chatId, session.Language, (
@@ -545,7 +563,8 @@ public sealed partial class BotHandlers
         var imgPath = _partyImagePath;
         if (!string.IsNullOrWhiteSpace(imgPath))
         {
-            var absImg = Path.IsPathRooted(imgPath) ? imgPath : Path.Combine(baseDir, imgPath);
+            var absImg = ResolveAtBase(imgPath);
+
             if (!System.IO.File.Exists(absImg))
             {
                 try
@@ -556,10 +575,22 @@ public sealed partial class BotHandlers
                     for (int y = 20; y < 180; y += 10)
                     for (int x = 20; x < 380; x += 10)
                         img[x, y] = new Rgba32((byte)(x % 255), (byte)(y % 255), (byte)((x+y) % 255));
-                    await img.SaveAsync(absImg, ct);
+                    var enc = EncoderForExtension(absImg);
+                    if (enc is null)
+                    {
+                        // Fallback to PNG if extension unrecognized
+                        var pngPath = Path.ChangeExtension(absImg, ".png");
+                        await img.SaveAsync(pngPath, new SixLabors.ImageSharp.Formats.Png.PngEncoder(), ct);
+                        absImg = pngPath;
+                    }
+                    else
+                    {
+                        await img.SaveAsync(absImg, enc, ct);
+                    }
                 }
                 catch { /* ignore generation errors */ }
             }
+
             if (System.IO.File.Exists(absImg))
             {
                 await using var fs = System.IO.File.OpenRead(absImg);
@@ -568,6 +599,7 @@ public sealed partial class BotHandlers
                 return;
             }
         }
+
         await SendTextAsync();
     }
 

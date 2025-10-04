@@ -25,16 +25,19 @@ A simple, bilingual (fi/en) Telegram bot for collecting event RSVPs. Guests can 
    - Or set it in `appsettings.json` under `Telegram:Token`
 
 3) Optional admin settings
-   - Set `Admin:UserId` in `appsettings.json` to a numeric Telegram user ID or an `@username` to designate the superadmin.
-   - Superadmin can designate additional group-specific admins at runtime (see Admin Commands).
+- Set `Admin:UserId` in `appsettings.json` to a numeric Telegram user ID or an `@username` to designate the superadmin.
+- Superadmin can designate additional group-specific admins at runtime (see Admin Commands).
 
-4) Optional party info
-   - Configure `Party:InfoTextPath` and `Party:InfoImagePath` in `appsettings.json`.
-   - If the image path does not exist, a placeholder image may be generated on first use.
+4) Configure required single-group mode
+- Set `Group:Id` to your group chat ID (required). The bot ignores non-private messages from any other group, and all group-admin commands operate on this group only.
 
-5) Run locally
-   - `dotnet run`
-   - In Telegram, DM your bot and send `/start`.
+5) Optional party info
+- Configure `Party:InfoTextPath` and `Party:InfoImagePath` in `appsettings.json`.
+- If the image path does not exist, a placeholder image may be generated on first use.
+
+6) Run locally
+- `dotnet run`
+- In Telegram, DM your bot and send `/start`.
 
 ## Usage (Guest)
 - `/start` – begin the flow; choose language, enter full name, choose +1 (avec) yes/no, provide +1 details if applicable.
@@ -52,10 +55,9 @@ A simple, bilingual (fi/en) Telegram bot for collecting event RSVPs. Guests can 
 - Who am I
   - `/whoami` (admin only) returns your `UserId`, `ChatId`, and `@username`.
 - Group admins (superadmin only, in private chat)
-  - `/groupadmins list` – lists all group IDs with admin sets
-  - `/groupadmins list <groupId>` – lists admins for one group
-  - `/groupadmins add <groupId> <userId>` – add admin
-  - `/groupadmins remove <groupId> <userId>` – remove admin
+  - `/groupadmins list` – lists admins for the configured group
+  - `/groupadmins add <userId>` – add admin to the configured group
+  - `/groupadmins remove <userId>` – remove admin from the configured group
 
 ## Data & Storage
 - RSVP data: `data/rsvps.jsonl` (JSON Lines), append-only with the latest record considered authoritative per user.
@@ -95,6 +97,9 @@ Notes:
   },
   "Admin": {
     "UserId": "@adminperson"  // or numeric ID
+  },
+  "Group": {
+    "Id": "-1001234567890"   // optional: restrict to this group
   },
   "Party": {
     "InfoTextPath": "party-info.txt",

@@ -44,6 +44,16 @@ if (!string.IsNullOrWhiteSpace(adminSetting))
 
 var repo = new GuestRepository();
 var groupAdminStore = new GroupAdminStore();
+
+// Single-group mode is mandatory
+var groupIdSetting = configuration["Group:Id"];
+if (string.IsNullOrWhiteSpace(groupIdSetting) || !long.TryParse(groupIdSetting, out var parsedGroupId))
+{
+    Console.Error.WriteLine("Missing or invalid Group:Id. Configure the numeric Telegram group ID in appsettings.json or environment.");
+    Console.Error.WriteLine("Example:  dotnet user-secrets set \"Group:Id\" \"-1001234567890\" ");
+    return 1;
+}
+long allowedGroupId = parsedGroupId;
 var handlers = new BotHandlers(
     botClient,
     repo,
@@ -51,7 +61,8 @@ var handlers = new BotHandlers(
     adminUsername,
     configuration["Party:InfoTextPath"],
     configuration["Party:InfoImagePath"],
-    groupAdminStore
+    groupAdminStore,
+    allowedGroupId
 );
 
 using var cts = new CancellationTokenSource();
